@@ -1,8 +1,35 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>เว็บของฉัน</title>
+  <title>My Website</title>
+  <style>
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    button {
+      background: #000;
+      color: #fff;
+      border: 2px solid #fff;
+      padding: 14px 36px;
+      font-size: 16px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #fff;
+      color: #000;
+    }
+  </style>
 </head>
 <body>
 
@@ -10,13 +37,9 @@
     <source src="song.mp3" type="audio/mpeg">
   </audio>
 
-  <button onclick="document.getElementById('myAudio').play()" 
-    style="font-size:20px; padding:10px 20px; cursor:pointer;">
-    ▶ กดเพื่อเปิดเพลง
+  <button onclick="document.getElementById('myAudio').play()">
+    ▶ Play Music
   </button>
-
-  <h1>ยินดีต้อนรับ</h1>
-  <p>เนื้อหาเว็บไซต์ของคุณ...</p>
 
 </body>
 </html>
