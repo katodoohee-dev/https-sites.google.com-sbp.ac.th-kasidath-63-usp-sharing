@@ -6,9 +6,14 @@
 </head>
 <body>
 
-  <audio autoplay loop>
+  <audio id="myAudio" loop>
     <source src="song.mp3.mp3" type="audio/mpeg">
   </audio>
+
+  <button onclick="document.getElementById('myAudio').play()" 
+    style="font-size:20px; padding:10px 20px; cursor:pointer;">
+    ▶ กดเพื่อเปิดเพลง
+  </button>
 
   <h1>ยินดีต้อนรับ</h1>
   <p>เนื้อหาเว็บไซต์ของคุณ...</p>
