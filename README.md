@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Website</title>
+  <style>
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    button {
+      background: #000;
+      color: #fff;
+      border: 2px solid #fff;
+      padding: 14px 36px;
+      font-size: 16px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #fff;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+
+  <audio id="myAudio" loop>
+    <source src=""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Website</title>
+  <style>
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    button {
+      background: #000;
+      color: #fff;
+      border: 2px solid #fff;
+      padding: 14px 36px;
+      font-size: 16px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #fff;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+
+  <audio id="myAudio" loop>
+    <source src=""song1.mp4"" type="audio/mpeg">
+  </audio>
+
+  <button onclick="document.getElementById('myAudio').play()">
+    ▶ Play Music
+  </button>
+
+</body>
+</html>4"" type="audio/mpeg">
+  </audio>
+
+  <button onclick="document.getElementById('myAudio').play()">
+    ▶ Play Music
+  </button>
+
+</body>
+</html>
