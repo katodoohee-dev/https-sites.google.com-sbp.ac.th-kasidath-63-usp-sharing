@@ -1,11 +1,10 @@
 import { Router } from "express";
-import { z } from "zod";
-import { lookupOpenFoodFacts } from "../services/barcode.js";
+import { lookupBarcodeChain } from "../services/barcode.js";
 import { db } from "../db/index.js";
 
 export const barcodeRouter = Router();
 
-/** GET /api/barcode/:code — เช็ค local cache ก่อน ถ้าไม่มีค่อยยิงไป OpenFoodFacts (เทียบ lookupLocalBarcodeDB + lookupOpenFoodFacts เดิม) */
+/** GET /api/barcode/:code — เช็ค local cache ก่อน ถ้าไม่มีค่อยไล่ OpenFoodFacts -> UPCitemdb (เทียบ lookupProductByBarcode เดิม) */
 barcodeRouter.get("/:code", async (req, res) => {
   const code = req.params.code;
   if (!/^[0-9]{6,14}$/.test(code)) {
@@ -30,10 +29,11 @@ barcodeRouter.get("/:code", async (req, res) => {
     });
   }
 
-  const product = await lookupOpenFoodFacts(code);
-  if (!product) {
+  const found = await lookupBarcodeChain(code);
+  if (!found) {
     return res.status(404).json({ success: false, error: "ไม่พบสินค้านี้ในฐานข้อมูล ลองกรอกข้อมูลเองได้" });
   }
+  const { product, source } = found;
 
   db.prepare(
     `INSERT OR REPLACE INTO barcode_cache (barcode, name, brand, calories, protein, carbs, fat, image_url)
@@ -49,5 +49,5 @@ barcodeRouter.get("/:code", async (req, res) => {
     imageUrl: product.imageUrl ?? null,
   });
 
-  res.json({ success: true, product, source: "openfoodfacts" });
+  res.json({ success: true, product, source });
 });

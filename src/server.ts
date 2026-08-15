@@ -13,7 +13,9 @@ import { workoutRouter } from "./routes/workout.js";
 import { routeRouter } from "./routes/route.js";
 import { assistantRouter } from "./routes/assistant.js";
 import { barcodeRouter } from "./routes/barcode.js";
+import { checkinRouter } from "./routes/checkin.js";
 import { musicRouter } from "./routes/music.js";
+import { galleryRouter } from "./routes/gallery.js";
 
 const app = express();
 app.use(cors());
@@ -34,7 +36,10 @@ app.use("/api/workout", workoutRouter);
 app.use("/api/route", routeRouter);
 app.use("/api/assistant", assistantRouter);
 app.use("/api/barcode", barcodeRouter);
+app.use("/api/checkin", checkinRouter);
 app.use("/api/music", musicRouter);
+app.use("/api/gallery", galleryRouter);
+app.use("/uploads", express.static("data/uploads"));
 
 const port = Number(process.env.PORT) || 8787;
 app.listen(port, () => {

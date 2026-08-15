@@ -124,3 +124,15 @@ CREATE TABLE IF NOT EXISTS steps_daily (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (day, user_id)
 );
+
+-- กลุ่ม Check-in / Streak รายวัน (เทียบ doCheckin/checkinGreeting เดิม)
+CREATE TABLE IF NOT EXISTS checkins (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  streak INTEGER NOT NULL DEFAULT 0,
+  last_date TEXT,                     -- YYYY-MM-DD ของวันที่เช็คอินล่าสุด
+  freeze_available INTEGER NOT NULL DEFAULT 2,
+  freeze_month_key TEXT,              -- YYYY-MM ของเดือนที่คำนวณโควตา freeze
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- หมายเหตุ กลุ่ม Gallery: ใช้ food_entries.photo_url ที่มีอยู่แล้ว (เก็บ path ไฟล์จริงบน disk ผ่าน /api/gallery/upload)
+-- ไม่ต้องมีตารางเพิ่ม แค่ query food_entries WHERE photo_url IS NOT NULL ORDER BY created_at
