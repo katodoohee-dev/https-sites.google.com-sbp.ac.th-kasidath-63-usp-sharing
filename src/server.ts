@@ -22,6 +22,21 @@ app.use(cors());
 app.use(express.json({ limit: "15mb" })); // รองรับ base64 image
 app.use(resolveUser); // เติม req.userId ให้ทุก request (login แล้วใช้ user จริง, ไม่ login fallback 'local')
 
+// --- Request/response logging (เห็น error จริงใน Render logs) ---
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    const line = `${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`;
+    if (res.statusCode >= 400) {
+      console.error(line, "body:", JSON.stringify(req.body));
+    } else {
+      console.log(line);
+    }
+  });
+  next();
+});
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRouter);
 app.use("/api/scan", scanRouter);
@@ -40,6 +55,28 @@ app.use("/api/checkin", checkinRouter);
 app.use("/api/music", musicRouter);
 app.use("/api/gallery", galleryRouter);
 app.use("/uploads", express.static("data/uploads"));
+
+// 404 (ไม่ match route ไหนเลย)
+app.use((req, res) => {
+  console.error(`404 ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ success: false, error: "not_found" });
+});
+
+// Global error handler — ต้องอยู่ท้ายสุด รับ error ที่หลุดจาก route handler ทุกตัว
+// (รวมถึง error แบบ sync throw ใน db.prepare/run ที่ไม่มี try/catch)
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(`UNHANDLED ERROR ${req.method} ${req.originalUrl}:`, err?.stack || err);
+  if (res.headersSent) return;
+  res.status(500).json({ success: false, error: "internal_server_error" });
+});
+
+// จับ error ที่หลุดออกนอก request lifecycle ไปเลย (กัน process ตายเงียบๆ)
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+});
 
 const port = Number(process.env.PORT) || 8787;
 app.listen(port, () => {
