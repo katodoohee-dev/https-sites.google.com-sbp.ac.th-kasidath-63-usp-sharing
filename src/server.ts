@@ -18,7 +18,8 @@ import { musicRouter } from "./routes/music.js";
 import { galleryRouter } from "./routes/gallery.js";
 import { exportRouter } from "./routes/export.js";
 import { friendsRouter, weekSummaryRouter } from "./routes/friends.js";
-import { notificationsRouter } from "./routes/notifications.js";
+import { notificationsRouter, vapidConfigured } from "./routes/notifications.js";
+import { startReminderScheduler } from "./services/reminderScheduler.js";
 
 const app = express();
 app.use(cors());
@@ -89,4 +90,5 @@ process.on("uncaughtException", (err) => {
 const port = Number(process.env.PORT) || 8787;
 app.listen(port, () => {
   console.log(`WK Health backend listening on :${port}`);
+  startReminderScheduler(vapidConfigured);
 });

@@ -196,3 +196,12 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+-- กันส่งแจ้งเตือนอัตโนมัติซ้ำ (1 ประเภท/user/วัน) — scheduler เช็คตารางนี้ก่อนส่งทุกครั้ง
+CREATE TABLE IF NOT EXISTS notification_log (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,                 -- meal_lunch | meal_dinner | streak_risk
+  day TEXT NOT NULL,                  -- YYYY-MM-DD (ตามเวลา server)
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, type, day)
+);
