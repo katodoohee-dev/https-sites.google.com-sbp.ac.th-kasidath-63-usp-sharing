@@ -184,3 +184,15 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   quiet_end TEXT NOT NULL DEFAULT '07:00',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Web Push subscriptions จริง (browser PushSubscription object) — ผูกได้หลายเครื่อง/user
+-- (endpoint คือ unique key ของแต่ละอุปกรณ์+เบราว์เซอร์ที่ subscribe ไว้)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
