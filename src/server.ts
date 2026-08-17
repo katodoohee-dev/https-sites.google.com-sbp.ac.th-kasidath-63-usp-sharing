@@ -19,6 +19,8 @@ import { galleryRouter } from "./routes/gallery.js";
 import { exportRouter } from "./routes/export.js";
 import { friendsRouter, weekSummaryRouter } from "./routes/friends.js";
 import { notificationsRouter, vapidConfigured } from "./routes/notifications.js";
+import { waterRouter } from "./routes/water.js";
+import { insightRouter } from "./routes/insight.js";
 import { startReminderScheduler } from "./services/reminderScheduler.js";
 
 const app = express();
@@ -62,6 +64,8 @@ app.use("/api/export", exportRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stats", weekSummaryRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/water", waterRouter);
+app.use("/api/insight", insightRouter);
 app.use("/uploads", express.static("data/uploads"));
 app.use("/exports", express.static("data/exports"));
 

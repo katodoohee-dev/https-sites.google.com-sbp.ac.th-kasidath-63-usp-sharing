@@ -113,7 +113,15 @@ CREATE TABLE IF NOT EXISTS barcode_cache (
   cached_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- กลุ่ม Pedometer: บันทึกก้าวเดิน/ระยะทาง/แคลอรีที่เผาผลาญต่อวัน
+-- กลุ่ม Water tracking (เทียบ toggle waterReminder ที่มีอยู่แล้วแต่ยังไม่มีที่เก็บข้อมูลจริง)
+CREATE TABLE IF NOT EXISTS water_log (
+  day TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  glasses INTEGER NOT NULL DEFAULT 0,
+  goal_glasses INTEGER NOT NULL DEFAULT 8,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (day, user_id)
+);
 CREATE TABLE IF NOT EXISTS steps_daily (
   day TEXT NOT NULL,           -- YYYY-MM-DD
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,

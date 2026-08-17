@@ -1,15 +1,15 @@
 import webpush from "web-push";
 import { db } from "../db/index.js";
+import { buildWeeklyInsight } from "./weeklyInsight.js";
 
 /**
- * Scheduler แจ้งเตือนอัตโนมัติ — ทำงานจริงแค่ 2 ประเภทที่มีข้อมูลจริงรองรับ:
+ * Scheduler แจ้งเตือนอัตโนมัติ — ทำงานจริง 4 ประเภท:
  *   1. mealReminder: เตือนถ้าถึงช่วงมื้อกลางวัน/เย็นแล้วยังไม่บันทึกมื้อนั้นเลย
  *   2. streakRisk: เตือนตอนใกล้เที่ยงคืนถ้ายังไม่เช็คอินวันนี้
+ *   3. waterReminder: เตือนตอนบ่ายถ้าดื่มน้ำไปยังไม่ถึงครึ่งเป้าหมายของวัน
+ *   4. weeklyInsight: สรุปผลสัปดาห์ที่แล้วส่งทุกวันจันทร์เช้า (คำนวณจากข้อมูลจริง ไม่ใช้ AI)
  *
- * ⚠️ ข้อจำกัดที่ต้องรู้ก่อนใช้จริง:
- * - waterReminder / weeklyInsight ใน settings มีอยู่แต่ scheduler นี้ "ไม่ส่ง" เพราะ
- *   ไม่มีตารางเก็บปริมาณน้ำดื่มจริงในระบบ และยังไม่มี insight generator รายสัปดาห์
- *   (ต้องทำเพิ่มถ้าจะให้ 2 ตัวนี้ทำงานจริง)
+ * ⚠️ ข้อจำกัดที่ยังเหลืออยู่:
  * - smartTiming (ให้ AI เลือกเวลาเอง) ยังไม่ได้ implement — ตอนนี้ใช้เวลาคงที่เสมอ
  * - เช็คเวลาเป็นเวลาของ "server" เท่านั้น ไม่รู้ timezone จริงของผู้ใช้แต่ละคน —
  *   ถ้า deploy server คนละ timezone กับผู้ใช้ส่วนใหญ่ เวลาที่เตือนจะคลาดเคลื่อน
@@ -23,7 +23,9 @@ interface UserRow {
 }
 interface SettingsRow {
   meal_reminder: number;
+  water_reminder: number;
   streak_risk: number;
+  weekly_insight: number;
   quiet_start: string;
   quiet_end: string;
 }
@@ -109,6 +111,28 @@ async function tick(): Promise<void> {
         await sendToUser(u.id, "streak ของคุณกำลังจะขาด 🔥", "เช็คอินวันนี้ก่อนเที่ยงคืน กันหลุด streak");
       }
       markSent(u.id, "streak_risk", day);
+    }
+
+    // เตือนดื่มน้ำ: เช็คตอน 14:00-14:59 ถ้าดื่มไปยังไม่ถึงครึ่งเป้าของวัน (เทียบ toggle waterReminder ที่มีแต่ไม่เคยทำงานจริงมาก่อน)
+    if (settings.water_reminder && hour === 14 && !alreadySent(u.id, "water", day)) {
+      const w = db
+        .prepare(`SELECT glasses, goal_glasses FROM water_log WHERE user_id = ? AND day = date('now')`)
+        .get(u.id) as { glasses: number; goal_glasses: number } | undefined;
+      const glasses = w?.glasses ?? 0;
+      const goal = w?.goal_glasses ?? 8;
+      if (glasses < goal / 2) {
+        await sendToUser(u.id, "อย่าลืมดื่มน้ำนะ 💧", `วันนี้ดื่มไปแค่ ${glasses}/${goal} แก้ว ลองดื่มเพิ่มอีกสักแก้ว`);
+      }
+      markSent(u.id, "water", day);
+    }
+
+    // Weekly insight: ส่งทุกวันจันทร์ 08:00-08:59 (เทียบ toggle weeklyInsight ที่มีแต่ไม่เคยทำงานจริงมาก่อน)
+    if (settings.weekly_insight && now.getDay() === 1 && hour === 8 && !alreadySent(u.id, "weekly_insight", day)) {
+      const insight = buildWeeklyInsight(u.id);
+      if (insight.daysLogged > 0) {
+        await sendToUser(u.id, "สรุปผลสัปดาห์ที่แล้วของคุณ 📊", insight.headline);
+      }
+      markSent(u.id, "weekly_insight", day);
     }
   }
 }
