@@ -136,3 +136,51 @@ CREATE TABLE IF NOT EXISTS checkins (
 );
 -- หมายเหตุ กลุ่ม Gallery: ใช้ food_entries.photo_url ที่มีอยู่แล้ว (เก็บ path ไฟล์จริงบน disk ผ่าน /api/gallery/upload)
 -- ไม่ต้องมีตารางเพิ่ม แค่ query food_entries WHERE photo_url IS NOT NULL ORDER BY created_at
+
+-- กลุ่ม Export/Backup: ประวัติการขอ export ข้อมูล
+CREATE TABLE IF NOT EXISTS export_history (
+  id TEXT PRIMARY KEY,                  -- uuid
+  user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
+  format TEXT NOT NULL,                 -- pdf | csv
+  range TEXT NOT NULL,                  -- 7d | 30d | 90d | all
+  file_path TEXT NOT NULL,              -- path บน disk ใต้ data/exports
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_export_history_user ON export_history(user_id, created_at);
+
+-- กลุ่ม Friends/Leaderboard
+CREATE TABLE IF NOT EXISTS friendships (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, friend_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friendships_user ON friendships(user_id);
+
+CREATE TABLE IF NOT EXISTS friend_cheers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,                    -- YYYY-MM-DD กันเชียร์ซ้ำวันเดียวกัน
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (from_user_id, to_user_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS invite_codes (
+  code TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- กลุ่ม Notification Settings
+CREATE TABLE IF NOT EXISTS notification_settings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  meal_reminder INTEGER NOT NULL DEFAULT 1,
+  water_reminder INTEGER NOT NULL DEFAULT 1,
+  streak_risk INTEGER NOT NULL DEFAULT 1,
+  weekly_insight INTEGER NOT NULL DEFAULT 1,
+  smart_timing INTEGER NOT NULL DEFAULT 0,
+  quiet_start TEXT NOT NULL DEFAULT '22:00',
+  quiet_end TEXT NOT NULL DEFAULT '07:00',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

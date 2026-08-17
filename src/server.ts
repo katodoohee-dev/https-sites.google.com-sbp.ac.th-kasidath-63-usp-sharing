@@ -16,6 +16,9 @@ import { barcodeRouter } from "./routes/barcode.js";
 import { checkinRouter } from "./routes/checkin.js";
 import { musicRouter } from "./routes/music.js";
 import { galleryRouter } from "./routes/gallery.js";
+import { exportRouter } from "./routes/export.js";
+import { friendsRouter, weekSummaryRouter } from "./routes/friends.js";
+import { notificationsRouter } from "./routes/notifications.js";
 
 const app = express();
 app.use(cors());
@@ -54,7 +57,12 @@ app.use("/api/barcode", barcodeRouter);
 app.use("/api/checkin", checkinRouter);
 app.use("/api/music", musicRouter);
 app.use("/api/gallery", galleryRouter);
+app.use("/api/export", exportRouter);
+app.use("/api/friends", friendsRouter);
+app.use("/api/stats", weekSummaryRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/uploads", express.static("data/uploads"));
+app.use("/exports", express.static("data/exports"));
 
 // 404 (ไม่ match route ไหนเลย)
 app.use((req, res) => {
