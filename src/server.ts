@@ -25,17 +25,20 @@ import { startReminderScheduler } from "./services/reminderScheduler.js";
 import { db } from "./db/index.js";
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
 const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
-const defaultOrigins = [
-  "https://wk-health-frontend.onrender.com",
-  "https://sites.google.com",
-  "http://localhost:3000",
-  "http://localhost:5173",
-];
-const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : defaultOrigins);
+const developmentOrigins = ["http://localhost:3000", "http://localhost:5173"];
+const defaultProductionOrigins = ["https://wk-health-frontend.onrender.com"];
+const allowedOrigins = new Set(
+  configuredOrigins.length
+    ? configuredOrigins
+    : isProduction
+      ? defaultProductionOrigins
+      : developmentOrigins,
+);
 
 app.use(cors({
   origin(origin, callback) {
@@ -51,13 +54,12 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const ms = Date.now() - start;
     const line = `${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`;
-    if (res.statusCode >= 400) console.error(line, "body:", JSON.stringify(req.body));
+    if (res.statusCode >= 400) console.error(line);
     else console.log(line);
   });
   next();
 });
 
-// Public infrastructure endpoints.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "wk-health-backend", version: "1.0.0" }));
 app.get("/api/health/details", (_req, res) => {
   let database = "ok";
@@ -73,14 +75,12 @@ app.get("/api/health/details", (_req, res) => {
       deepseekProxy: Boolean(process.env.DEEPSEEK_PROXY_URL),
       webPush: vapidConfigured,
     },
-    corsOrigins: [...allowedOrigins],
   });
 });
 app.use("/uploads", express.static("data/uploads"));
 app.use("/exports", express.static("data/exports"));
 app.use("/api/auth", authRouter);
 
-// Every data/API endpoint below is authenticated and user-scoped.
 app.use(requireAuth);
 app.use("/api/scan", scanRouter);
 app.use("/api/diary", diaryRouter);
