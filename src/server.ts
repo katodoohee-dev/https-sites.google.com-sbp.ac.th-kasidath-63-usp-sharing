@@ -28,7 +28,17 @@ const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
-const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : ["http://localhost:3000", "http://localhost:5173"]);
+
+// Production defaults cover the current Render frontend and the Google Sites host.
+// CORS_ORIGINS can still override/extend this list for a custom domain.
+const defaultOrigins = [
+  "https://wk-health-frontend.onrender.com",
+  "https://sites.google.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : defaultOrigins);
+
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) return callback(null, true);
