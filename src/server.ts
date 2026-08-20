@@ -22,6 +22,7 @@ import { notificationsRouter, vapidConfigured } from "./routes/notifications.js"
 import { waterRouter } from "./routes/water.js";
 import { insightRouter } from "./routes/insight.js";
 import { startReminderScheduler } from "./services/reminderScheduler.js";
+import { db } from "./db/index.js";
 
 const app = express();
 const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
@@ -58,6 +59,23 @@ app.use((req, res, next) => {
 
 // Public infrastructure endpoints.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "wk-health-backend", version: "1.0.0" }));
+app.get("/api/health/details", (_req, res) => {
+  let database = "ok";
+  try { db.prepare("SELECT 1").get(); } catch { database = "error"; }
+  res.json({
+    ok: database === "ok",
+    service: "wk-health-backend",
+    version: "1.0.0",
+    database,
+    integrations: {
+      geminiDirect: Boolean(process.env.GEMINI_API_KEY),
+      geminiProxy: Boolean(process.env.GEMINI_VISION_PROXY_URL),
+      deepseekProxy: Boolean(process.env.DEEPSEEK_PROXY_URL),
+      webPush: vapidConfigured,
+    },
+    corsOrigins: [...allowedOrigins],
+  });
+});
 app.use("/uploads", express.static("data/uploads"));
 app.use("/exports", express.static("data/exports"));
 app.use("/api/auth", authRouter);
