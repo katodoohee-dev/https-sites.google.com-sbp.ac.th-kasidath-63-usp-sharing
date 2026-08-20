@@ -3,9 +3,7 @@ export interface VisionResult {
 }
 
 // Stable multimodal fallback. A production deployment can override this with GEMINI_VISION_MODEL.
-// Google currently documents Gemini 2.5 Flash-Lite as a stable multimodal model.
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
-const DEFAULT_VISION_PROXY = "https://apigemini.katodoohee.workers.dev";
 
 function cleanBase64(value: string) {
   return value.replace(/^data:[^;]+;base64,/, "").replace(/\s/g, "");
@@ -98,12 +96,12 @@ export async function analyzeFoodImage(
   promptText: string,
   timeoutMs = 25_000,
 ): Promise<VisionResult> {
-  const proxyUrl = process.env.GEMINI_VISION_PROXY_URL || DEFAULT_VISION_PROXY;
-  const authKey = process.env.GEMINI_WORKER_AUTH_KEY;
+  const proxyUrl = process.env.GEMINI_VISION_PROXY_URL?.trim();
+  const authKey = process.env.GEMINI_WORKER_AUTH_KEY?.trim();
 
-  // Prefer the authenticated Worker proxy when configured. If unavailable,
-  // fall back to the server-side Gemini key. Secrets never enter the browser bundle.
-  if (authKey) {
+  // Prefer the authenticated Worker proxy when both values are configured.
+  // If unavailable, fall back to the server-side Gemini key. Secrets never enter the browser bundle.
+  if (proxyUrl && authKey) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
