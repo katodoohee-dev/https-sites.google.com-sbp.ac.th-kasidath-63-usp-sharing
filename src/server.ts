@@ -7,7 +7,7 @@ import { nlpRouter } from "./routes/nlp.js";
 import { moodRouter, budgetRouter } from "./routes/moodBudget.js";
 import { pedometerRouter } from "./routes/pedometer.js";
 import { authRouter } from "./routes/auth.js";
-import { resolveUser } from "./middleware/auth.js";
+import { requireAuth } from "./middleware/auth.js";
 import { bodyRouter } from "./routes/body.js";
 import { workoutRouter } from "./routes/workout.js";
 import { routeRouter } from "./routes/route.js";
@@ -28,9 +28,6 @@ const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
-
-// Production defaults cover the current Render frontend and the Google Sites host.
-// CORS_ORIGINS can still override/extend this list for a custom domain.
 const defaultOrigins = [
   "https://wk-health-frontend.onrender.com",
   "https://sites.google.com",
@@ -47,7 +44,6 @@ app.use(cors({
   credentials: false,
 }));
 app.use(express.json({ limit: "15mb" }));
-app.use(resolveUser);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -60,8 +56,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health and authentication are public. Every other API is user-scoped.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "wk-health-backend", version: "1.0.0" }));
 app.use("/api/auth", authRouter);
+app.use(requireAuth);
+
 app.use("/api/scan", scanRouter);
 app.use("/api/diary", diaryRouter);
 app.use("/api/stats", statsRouter);
