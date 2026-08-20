@@ -2,9 +2,9 @@ export interface VisionResult {
   raw: string;
 }
 
-// Cost-conscious default for food-image analysis.
-// Gemini 3.5 Flash-Lite is GA, multimodal, and the lowest-cost 3.x Flash option.
-const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+// Stable multimodal fallback. A production deployment can override this with GEMINI_VISION_MODEL.
+// Google currently documents Gemini 2.5 Flash-Lite as a stable multimodal model.
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 const DEFAULT_VISION_PROXY = "https://apigemini.katodoohee.workers.dev";
 
 function cleanBase64(value: string) {
@@ -101,8 +101,8 @@ export async function analyzeFoodImage(
   const proxyUrl = process.env.GEMINI_VISION_PROXY_URL || DEFAULT_VISION_PROXY;
   const authKey = process.env.GEMINI_WORKER_AUTH_KEY;
 
-  // Keep the Worker path when configured. If the Worker is unavailable,
-  // fall back to the server-side Gemini API key. The key never enters the browser bundle.
+  // Prefer the authenticated Worker proxy when configured. If unavailable,
+  // fall back to the server-side Gemini key. Secrets never enter the browser bundle.
   if (authKey) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
