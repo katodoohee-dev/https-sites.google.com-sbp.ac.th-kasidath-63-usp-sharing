@@ -14,11 +14,13 @@ export function verifyPassword(password: string, hash: string): boolean {
 
 export function createUser(email: string, password: string, displayName?: string) {
   const id = crypto.randomUUID();
+  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedDisplayName = displayName?.trim() || null;
   const passwordHash = hashPassword(password);
   db.prepare(
     `INSERT INTO users (id, email, password_hash, display_name) VALUES (?, ?, ?, ?)`
-  ).run(id, email.toLowerCase().trim(), passwordHash, displayName ?? null);
-  return { id, email };
+  ).run(id, normalizedEmail, passwordHash, normalizedDisplayName);
+  return { id, email: normalizedEmail, display_name: normalizedDisplayName };
 }
 
 export function findUserByEmail(email: string) {
