@@ -16,3 +16,7 @@ services:
         value: gemini-2.5-flash-lite
       - key: GEMINI_VISION_PROXY_URL
         value: https://apigemini.katodoohee.workers.dev
+      - key: DEEPSEEK_PROXY_URL
+        value: https://kasidathdeepseek.katodoohee.workers.dev
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
