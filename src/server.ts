@@ -56,11 +56,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health and authentication are public. Every other API is user-scoped.
+// Public infrastructure endpoints.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "wk-health-backend", version: "1.0.0" }));
+app.use("/uploads", express.static("data/uploads"));
+app.use("/exports", express.static("data/exports"));
 app.use("/api/auth", authRouter);
-app.use(requireAuth);
 
+// Every data/API endpoint below is authenticated and user-scoped.
+app.use(requireAuth);
 app.use("/api/scan", scanRouter);
 app.use("/api/diary", diaryRouter);
 app.use("/api/stats", statsRouter);
@@ -82,8 +85,6 @@ app.use("/api/stats", weekSummaryRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/water", waterRouter);
 app.use("/api/insight", insightRouter);
-app.use("/uploads", express.static("data/uploads"));
-app.use("/exports", express.static("data/exports"));
 
 app.use((req, res) => {
   console.error(`404 ${req.method} ${req.originalUrl}`);
