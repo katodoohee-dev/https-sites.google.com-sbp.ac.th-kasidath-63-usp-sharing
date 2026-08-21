@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.DATABASE_PATH || "./data/wk-health.sqlite";
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -41,4 +42,21 @@ CREATE TABLE IF NOT EXISTS sound_sessions (
  input_device TEXT,
  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS friend_location_settings (
+ user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ enabled INTEGER NOT NULL DEFAULT 0,
+ updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS friend_locations (
+ user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ friend_id TEXT NOT NULL,
+ lat REAL NOT NULL,
+ lng REAL NOT NULL,
+ accuracy REAL,
+ heading REAL,
+ speed_mps REAL,
+ updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+ PRIMARY KEY (user_id, friend_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friend_locations_user ON friend_locations(user_id, updated_at);
 `);
