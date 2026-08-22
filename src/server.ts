@@ -7,7 +7,7 @@ import { nlpRouter } from "./routes/nlp.js";
 import { moodRouter, budgetRouter } from "./routes/moodBudget.js";
 import { pedometerRouter } from "./routes/pedometer.js";
 import { authRouter } from "./routes/auth.js";
-import { resolveUser } from "./middleware/auth.js";
+import { requireAuth } from "./middleware/auth.js";
 import { bodyRouter } from "./routes/body.js";
 import { workoutRouter } from "./routes/workout.js";
 import { routeRouter } from "./routes/route.js";
@@ -22,15 +22,13 @@ import { notificationsRouter, vapidConfigured } from "./routes/notifications.js"
 import { waterRouter } from "./routes/water.js";
 import { insightRouter } from "./routes/insight.js";
 import { startReminderScheduler } from "./services/reminderScheduler.js";
+import { db } from "./db/index.js";
 
 const app = express();
 const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
-
-// Production defaults cover the current Render frontend and the Google Sites host.
-// CORS_ORIGINS can still override/extend this list for a custom domain.
 const defaultOrigins = [
   "https://wk-health-frontend.onrender.com",
   "https://sites.google.com",
@@ -47,7 +45,6 @@ app.use(cors({
   credentials: false,
 }));
 app.use(express.json({ limit: "15mb" }));
-app.use(resolveUser);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -60,8 +57,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// Public infrastructure endpoints.
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "wk-health-backend", version: "1.0.0" }));
+app.get("/api/health/details", (_req, res) => {
+  let database = "ok";
+  try { db.prepare("SELECT 1").get(); } catch { database = "error"; }
+  res.json({
+    ok: database === "ok",
+    service: "wk-health-backend",
+    version: "1.0.0",
+    database,
+    integrations: {
+      geminiDirect: Boolean(process.env.GEMINI_API_KEY),
+      geminiProxy: Boolean(process.env.GEMINI_VISION_PROXY_URL),
+      deepseekProxy: Boolean(process.env.DEEPSEEK_PROXY_URL),
+      webPush: vapidConfigured,
+    },
+    corsOrigins: [...allowedOrigins],
+  });
+});
+app.use("/uploads", express.static("data/uploads"));
+app.use("/exports", express.static("data/exports"));
 app.use("/api/auth", authRouter);
+
+// Every data/API endpoint below is authenticated and user-scoped.
+app.use(requireAuth);
 app.use("/api/scan", scanRouter);
 app.use("/api/diary", diaryRouter);
 app.use("/api/stats", statsRouter);
@@ -83,8 +103,6 @@ app.use("/api/stats", weekSummaryRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/water", waterRouter);
 app.use("/api/insight", insightRouter);
-app.use("/uploads", express.static("data/uploads"));
-app.use("/exports", express.static("data/exports"));
 
 app.use((req, res) => {
   console.error(`404 ${req.method} ${req.originalUrl}`);

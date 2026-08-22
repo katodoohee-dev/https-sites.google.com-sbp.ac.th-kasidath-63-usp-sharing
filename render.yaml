@@ -3,7 +3,7 @@ services:
     name: wk-health-backend
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci || npm install --no-audit --no-fund && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
@@ -11,4 +11,24 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: CORS_ORIGINS
+        value: https://wk-health-frontend.onrender.com,https://sites.google.com
+      - key: DATABASE_PATH
+        value: ./data/wk-health.sqlite
+      - key: GEMINI_VISION_MODEL
+        value: gemini-2.5-flash-lite
+      - key: GEMINI_VISION_PROXY_URL
+        value: https://apigemini.katodoohee.workers.dev
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_WORKER_AUTH_KEY
+        sync: false
+      - key: DEEPSEEK_PROXY_URL
+        value: https://kasidathdeepseek.katodoohee.workers.dev
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
         sync: false
