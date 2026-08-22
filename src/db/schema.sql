@@ -2,7 +2,7 @@
 -- ลำดับ: users -> food_entries -> steps_daily
 
 CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY,                 -- uuid
+  id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   display_name TEXT,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,              -- opaque random token
+  token TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -26,11 +26,10 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 INSERT OR IGNORE INTO users (id, email, password_hash, display_name)
 VALUES ('local', 'local@local', 'no-login', 'Local User');
 
-
 CREATE TABLE IF NOT EXISTS food_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
-  meal_type TEXT NOT NULL,              -- breakfast/lunch/dinner/snack
+  meal_type TEXT NOT NULL,
   food_name TEXT NOT NULL,
   calories INTEGER NOT NULL,
   protein REAL DEFAULT 0,
@@ -39,10 +38,9 @@ CREATE TABLE IF NOT EXISTS food_entries (
   sodium REAL DEFAULT 0,
   fiber REAL DEFAULT 0,
   photo_url TEXT,
-  source TEXT NOT NULL DEFAULT 'manual', -- manual | vision | nlp | barcode
+  source TEXT NOT NULL DEFAULT 'manual',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
 CREATE INDEX IF NOT EXISTS idx_food_entries_created_at ON food_entries(created_at);
 CREATE INDEX IF NOT EXISTS idx_food_entries_user ON food_entries(user_id);
 
@@ -52,7 +50,7 @@ CREATE TABLE IF NOT EXISTS workouts (
   exercise_name TEXT NOT NULL,
   minutes INTEGER NOT NULL DEFAULT 10,
   kcal_burned INTEGER NOT NULL,
-  source_key TEXT,                      -- อ้างอิงกลับไปยังแผนที่ AI generate ให้ (กันบันทึกซ้ำวันเดียวกัน)
+  source_key TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_workouts_user_date ON workouts(user_id, created_at);
@@ -63,7 +61,7 @@ CREATE TABLE IF NOT EXISTS gps_routes (
   distance_km REAL NOT NULL DEFAULT 0,
   duration_seconds INTEGER NOT NULL DEFAULT 0,
   kcal_burned REAL NOT NULL DEFAULT 0,
-  path_json TEXT,                        -- JSON array ของ {lat,lng,t}
+  path_json TEXT,
   started_at TEXT NOT NULL,
   ended_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -73,18 +71,18 @@ CREATE INDEX IF NOT EXISTS idx_routes_user ON gps_routes(user_id);
 CREATE TABLE IF NOT EXISTS assistant_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL,                    -- user | assistant
+  role TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_assistant_user ON assistant_messages(user_id, created_at);
 
 CREATE TABLE IF NOT EXISTS music_library (
-  id TEXT PRIMARY KEY,                   -- client-generated id (t_...)
+  id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   title TEXT,
-  type TEXT NOT NULL,                    -- youtube | audio
+  type TEXT NOT NULL,
   yt_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -113,7 +111,6 @@ CREATE TABLE IF NOT EXISTS barcode_cache (
   cached_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- กลุ่ม Water tracking (เทียบ toggle waterReminder ที่มีอยู่แล้วแต่ยังไม่มีที่เก็บข้อมูลจริง)
 CREATE TABLE IF NOT EXISTS water_log (
   day TEXT NOT NULL,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -122,8 +119,16 @@ CREATE TABLE IF NOT EXISTS water_log (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (day, user_id)
 );
+CREATE TABLE IF NOT EXISTS mood_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mood TEXT NOT NULL,
+  day TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mood_log_user_day ON mood_log(user_id, day);
 CREATE TABLE IF NOT EXISTS steps_daily (
-  day TEXT NOT NULL,           -- YYYY-MM-DD
+  day TEXT NOT NULL,
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
   steps INTEGER NOT NULL DEFAULT 0,
   distance_km REAL NOT NULL DEFAULT 0,
@@ -133,30 +138,25 @@ CREATE TABLE IF NOT EXISTS steps_daily (
   PRIMARY KEY (day, user_id)
 );
 
--- กลุ่ม Check-in / Streak รายวัน (เทียบ doCheckin/checkinGreeting เดิม)
 CREATE TABLE IF NOT EXISTS checkins (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   streak INTEGER NOT NULL DEFAULT 0,
-  last_date TEXT,                     -- YYYY-MM-DD ของวันที่เช็คอินล่าสุด
+  last_date TEXT,
   freeze_available INTEGER NOT NULL DEFAULT 2,
-  freeze_month_key TEXT,              -- YYYY-MM ของเดือนที่คำนวณโควตา freeze
+  freeze_month_key TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
--- หมายเหตุ กลุ่ม Gallery: ใช้ food_entries.photo_url ที่มีอยู่แล้ว (เก็บ path ไฟล์จริงบน disk ผ่าน /api/gallery/upload)
--- ไม่ต้องมีตารางเพิ่ม แค่ query food_entries WHERE photo_url IS NOT NULL ORDER BY created_at
 
--- กลุ่ม Export/Backup: ประวัติการขอ export ข้อมูล
 CREATE TABLE IF NOT EXISTS export_history (
-  id TEXT PRIMARY KEY,                  -- uuid
+  id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
-  format TEXT NOT NULL,                 -- pdf | csv
-  range TEXT NOT NULL,                  -- 7d | 30d | 90d | all
-  file_path TEXT NOT NULL,              -- path บน disk ใต้ data/exports
+  format TEXT NOT NULL,
+  range TEXT NOT NULL,
+  file_path TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_export_history_user ON export_history(user_id, created_at);
 
--- กลุ่ม Friends/Leaderboard
 CREATE TABLE IF NOT EXISTS friendships (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS friend_cheers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  day TEXT NOT NULL,                    -- YYYY-MM-DD กันเชียร์ซ้ำวันเดียวกัน
+  day TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (from_user_id, to_user_id, day)
 );
@@ -180,7 +180,6 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- กลุ่ม Notification Settings
 CREATE TABLE IF NOT EXISTS notification_settings (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   meal_reminder INTEGER NOT NULL DEFAULT 1,
@@ -193,8 +192,6 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Web Push subscriptions จริง (browser PushSubscription object) — ผูกได้หลายเครื่อง/user
--- (endpoint คือ unique key ของแต่ละอุปกรณ์+เบราว์เซอร์ที่ subscribe ไว้)
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -205,11 +202,10 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
 
--- กันส่งแจ้งเตือนอัตโนมัติซ้ำ (1 ประเภท/user/วัน) — scheduler เช็คตารางนี้ก่อนส่งทุกครั้ง
 CREATE TABLE IF NOT EXISTS notification_log (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,                 -- meal_lunch | meal_dinner | streak_risk
-  day TEXT NOT NULL,                  -- YYYY-MM-DD (ตามเวลา server)
+  type TEXT NOT NULL,
+  day TEXT NOT NULL,
   sent_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, type, day)
 );
