@@ -10,6 +10,7 @@ const credsSchema = z.object({
   email: z.string().email("อีเมลไม่ถูกต้อง"),
   password: z.string().min(8, "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"),
   displayName: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
 });
 
 authRouter.post("/register", (req, res) => {
@@ -17,7 +18,8 @@ authRouter.post("/register", (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "invalid body" });
   }
-  const { email, password, displayName } = parsed.data;
+  const { email, password } = parsed.data;
+  const displayName = parsed.data.displayName ?? parsed.data.name;
 
   if (findUserByEmail(email)) {
     return res.status(409).json({ success: false, error: "อีเมลนี้ถูกใช้ไปแล้ว", code: "email_taken" });
@@ -25,11 +27,11 @@ authRouter.post("/register", (req, res) => {
 
   const user = createUser(email, password, displayName);
   const token = createSession(user.id);
-  res.status(201).json({ success: true, token, user: { id: user.id, email: user.email } });
+  res.status(201).json({ success: true, token, user: { id: user.id, email: user.email, displayName: user.display_name } });
 });
 
 authRouter.post("/login", (req, res) => {
-  const parsed = credsSchema.omit({ displayName: true }).safeParse(req.body);
+  const parsed = credsSchema.omit({ displayName: true, name: true }).safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "invalid body" });
   }
