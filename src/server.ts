@@ -24,28 +24,47 @@ import { insightRouter } from "./routes/insight.js";
 import { startReminderScheduler } from "./services/reminderScheduler.js";
 
 const app = express();
+const normalizeOrigin = (value: string) => value.trim().replace(/\/$/, "");
 const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
-  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .map(normalizeOrigin)
   .filter(Boolean);
 
-// Production defaults cover the current Render frontend and the Google Sites host.
-// CORS_ORIGINS can still override/extend this list for a custom domain.
+// Keep explicit production origins, while allowing Render's generated frontend
+// hostname without requiring a manual backend redeploy whenever the frontend
+// service URL changes. CORS_ORIGINS remains the preferred strict allow-list for
+// custom domains.
 const defaultOrigins = [
   "https://wk-health-frontend.onrender.com",
   "https://sites.google.com",
   "http://localhost:3000",
   "http://localhost:5173",
 ];
-const allowedOrigins = new Set(configuredOrigins.length ? configuredOrigins : defaultOrigins);
+const allowedOrigins = new Set([...defaultOrigins, ...configuredOrigins]);
+
+function isAllowedOrigin(origin?: string) {
+  if (!origin) return true;
+  const normalized = normalizeOrigin(origin);
+  if (allowedOrigins.has(normalized)) return true;
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "https:" && url.hostname.endsWith(".onrender.com");
+  } catch {
+    return false;
+  }
+}
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     return callback(new Error("CORS origin not allowed"));
   },
   credentials: false,
 }));
+app.options("*", cors({ origin(origin, callback) {
+  if (isAllowedOrigin(origin)) return callback(null, true);
+  return callback(new Error("CORS origin not allowed"));
+} }));
 app.use(express.json({ limit: "15mb" }));
 app.use(resolveUser);
 
@@ -102,6 +121,6 @@ process.on("uncaughtException", (err) => console.error("UNCAUGHT EXCEPTION:", er
 const port = Number(process.env.PORT) || 8787;
 app.listen(port, () => {
   console.log(`WK Health backend listening on :${port}`);
-  console.log(`CORS allowlist: ${[...allowedOrigins].join(", ")}`);
+  console.log(`CORS allowlist: ${[...allowedOrigins].join(", ")} + *.onrender.com`);
   startReminderScheduler(vapidConfigured);
 });
