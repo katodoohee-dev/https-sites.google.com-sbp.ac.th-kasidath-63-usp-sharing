@@ -1,0 +1,62 @@
+name: WK Health Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  round-1-build:
+    name: Round 1 - Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  round-2-tests:
+    name: Round 2 - Integration tests
+    needs: round-1-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  round-3-hardening:
+    name: Round 3 - Production hardening
+    needs: round-2-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Check production configuration
+        shell: bash
+        run: |
+          test -f render.yaml
+          test -f .env.example
+          grep -q "healthCheckPath: /api/health" render.yaml
+          grep -q "GEMINI_VISION_PROXY_URL" .env.example
+          grep -q "GEMINI_WORKER_AUTH_KEY" .env.example
+          grep -q "CORS_ORIGINS" .env.example

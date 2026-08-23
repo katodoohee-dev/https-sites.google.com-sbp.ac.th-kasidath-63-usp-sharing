@@ -1,63 +1,130 @@
-// ย้ายมาจาก callGeminiVisionOnce() ในไฟล์ frontend เดิม (บรรทัด ~7067-7100)
-// ต่างจากเดิมตรงที่ AUTH KEY อยู่ฝั่ง server เท่านั้น ไม่หลุดไปกับ client bundle อีกต่อไป
-
 export interface VisionResult {
   raw: string;
+}
+
+// Stable multimodal fallback. A production deployment can override this with GEMINI_VISION_MODEL.
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+
+function cleanBase64(value: string) {
+  return value.replace(/^data:[^;]+;base64,/, "").replace(/\s/g, "");
+}
+
+async function directGeminiVision(
+  base64Image: string,
+  mimeType: string,
+  promptText: string,
+  timeoutMs: number,
+): Promise<VisionResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw Object.assign(
+      new Error("GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน environment ของ backend"),
+      { code: "config_missing" },
+    );
+  }
+
+  const model = process.env.GEMINI_VISION_MODEL || DEFAULT_GEMINI_MODEL;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: promptText },
+                {
+                  inline_data: {
+                    mime_type: mimeType || "image/jpeg",
+                    data: cleanBase64(base64Image),
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 800,
+          },
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    const data: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error?.message || `Gemini API ตอบกลับผิดพลาด (HTTP ${response.status})`;
+      throw Object.assign(new Error(message), {
+        code: response.status === 429 || response.status >= 500 ? "server_transient" : "http_permanent",
+        status: response.status,
+      });
+    }
+
+    const text = data?.candidates?.[0]?.content?.parts
+      ?.map((part: any) => part?.text || "")
+      .join("")
+      .trim();
+
+    if (!text) {
+      throw Object.assign(new Error("Gemini API ไม่ส่งข้อความผลวิเคราะห์กลับมา"), {
+        code: "bad_response",
+      });
+    }
+    return { raw: text };
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw Object.assign(new Error("Gemini Vision ไม่ตอบสนองภายในเวลาที่กำหนด (timeout)"), {
+        code: "timeout",
+      });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function analyzeFoodImage(
   base64Image: string,
   mimeType: string,
   promptText: string,
-  timeoutMs = 25_000
+  timeoutMs = 25_000,
 ): Promise<VisionResult> {
-  const proxyUrl = process.env.GEMINI_VISION_PROXY_URL;
-  const authKey = process.env.GEMINI_WORKER_AUTH_KEY;
-  if (!proxyUrl || !authKey) {
-    throw Object.assign(new Error("GEMINI_VISION_PROXY_URL / GEMINI_WORKER_AUTH_KEY ยังไม่ได้ตั้งค่าใน .env"), {
-      code: "config_missing",
-    });
+  const proxyUrl = process.env.GEMINI_VISION_PROXY_URL?.trim();
+  const authKey = process.env.GEMINI_WORKER_AUTH_KEY?.trim();
+
+  // Prefer the authenticated Worker proxy when both values are configured.
+  // If unavailable, fall back to the server-side Gemini key. Secrets never enter the browser bundle.
+  if (proxyUrl && authKey) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(proxyUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Worker-Auth-Key": authKey,
+        },
+        body: JSON.stringify({ imageBase64: base64Image, mimeType, prompt: promptText }),
+        signal: controller.signal,
+      });
+
+      const data: any = await response.json().catch(() => ({}));
+      if (response.ok && data?.success && typeof data.result === "string") {
+        return { raw: data.result };
+      }
+    } catch {
+      // Fall through to direct Gemini API.
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  let response: Response;
-  try {
-    response = await fetch(proxyUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Worker-Auth-Key": authKey },
-      body: JSON.stringify({ imageBase64: base64Image, mimeType, prompt: promptText }),
-      signal: controller.signal,
-    });
-  } catch (err: any) {
-    const e = new Error(
-      err.name === "AbortError"
-        ? "เรียก Gemini Vision ไม่ตอบสนองภายในเวลาที่กำหนด (timeout)"
-        : "เชื่อมต่อ Gemini Vision proxy ไม่ได้ (เช็คอินเทอร์เน็ต)"
-    );
-    (e as any).code = err.name === "AbortError" ? "timeout" : "network";
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-
-  let data: any;
-  try {
-    data = await response.json();
-  } catch {
-    const e = new Error("Gemini Vision proxy ตอบกลับมาไม่ใช่ JSON ที่อ่านได้");
-    (e as any).code = "bad_response";
-    throw e;
-  }
-
-  if (!response.ok || !data.success) {
-    const msg = data?.error || `Gemini Vision proxy ตอบกลับผิดพลาด (HTTP ${response.status})`;
-    const e = new Error(msg);
-    (e as any).code = response.status >= 500 || response.status === 429 ? "server_transient" : "http_permanent";
-    (e as any).status = response.status;
-    throw e;
-  }
-
-  return { raw: data.result };
+  return directGeminiVision(base64Image, mimeType, promptText, timeoutMs);
 }

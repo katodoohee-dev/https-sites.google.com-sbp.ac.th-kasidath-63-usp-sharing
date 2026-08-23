@@ -9,8 +9,14 @@ export const authRouter = Router();
 const credsSchema = z.object({
   email: z.string().email("อีเมลไม่ถูกต้อง"),
   password: z.string().min(8, "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"),
+  // Accept both the new UI's `name` and the canonical API `displayName`.
   displayName: z.string().min(1).optional(),
-});
+  name: z.string().min(1).optional(),
+}).transform((value) => ({
+  email: value.email,
+  password: value.password,
+  displayName: value.displayName ?? value.name,
+}));
 
 authRouter.post("/register", (req, res) => {
   const parsed = credsSchema.safeParse(req.body);
@@ -25,11 +31,15 @@ authRouter.post("/register", (req, res) => {
 
   const user = createUser(email, password, displayName);
   const token = createSession(user.id);
-  res.status(201).json({ success: true, token, user: { id: user.id, email: user.email } });
+  res.status(201).json({
+    success: true,
+    token,
+    user: { id: user.id, email: user.email, displayName: user.display_name },
+  });
 });
 
 authRouter.post("/login", (req, res) => {
-  const parsed = credsSchema.omit({ displayName: true }).safeParse(req.body);
+  const parsed = credsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "invalid body" });
   }
@@ -62,13 +72,17 @@ authRouter.get("/me", requireAuth, (req, res) => {
 
 const profileSchema = z.object({
   displayName: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
   weightKg: z.number().positive().optional(),
   heightCm: z.number().positive().optional(),
   goalKcal: z.number().int().positive().optional(),
   goalProtein: z.number().nonnegative().optional(),
   goalCarb: z.number().nonnegative().optional(),
   goalFat: z.number().nonnegative().optional(),
-});
+}).transform((value) => ({
+  ...value,
+  displayName: value.displayName ?? value.name,
+}));
 
 authRouter.patch("/me", requireAuth, (req, res) => {
   const parsed = profileSchema.safeParse(req.body);

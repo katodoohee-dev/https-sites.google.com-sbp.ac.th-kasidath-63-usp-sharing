@@ -113,7 +113,15 @@ CREATE TABLE IF NOT EXISTS barcode_cache (
   cached_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- กลุ่ม Pedometer: บันทึกก้าวเดิน/ระยะทาง/แคลอรีที่เผาผลาญต่อวัน
+-- กลุ่ม Water tracking (เทียบ toggle waterReminder ที่มีอยู่แล้วแต่ยังไม่มีที่เก็บข้อมูลจริง)
+CREATE TABLE IF NOT EXISTS water_log (
+  day TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  glasses INTEGER NOT NULL DEFAULT 0,
+  goal_glasses INTEGER NOT NULL DEFAULT 8,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (day, user_id)
+);
 CREATE TABLE IF NOT EXISTS steps_daily (
   day TEXT NOT NULL,           -- YYYY-MM-DD
   user_id TEXT NOT NULL DEFAULT 'local' REFERENCES users(id) ON DELETE CASCADE,
@@ -183,4 +191,25 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   quiet_start TEXT NOT NULL DEFAULT '22:00',
   quiet_end TEXT NOT NULL DEFAULT '07:00',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Web Push subscriptions จริง (browser PushSubscription object) — ผูกได้หลายเครื่อง/user
+-- (endpoint คือ unique key ของแต่ละอุปกรณ์+เบราว์เซอร์ที่ subscribe ไว้)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+-- กันส่งแจ้งเตือนอัตโนมัติซ้ำ (1 ประเภท/user/วัน) — scheduler เช็คตารางนี้ก่อนส่งทุกครั้ง
+CREATE TABLE IF NOT EXISTS notification_log (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,                 -- meal_lunch | meal_dinner | streak_risk
+  day TEXT NOT NULL,                  -- YYYY-MM-DD (ตามเวลา server)
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, type, day)
 );
