@@ -19,6 +19,7 @@ import { galleryRouter } from "./routes/gallery.js";
 import { exportRouter } from "./routes/export.js";
 import { friendsRouter, weekSummaryRouter } from "./routes/friends.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { voiceRouter } from "./routes/voice.js";
 
 const app = express();
 app.use(cors());
@@ -61,6 +62,7 @@ app.use("/api/export", exportRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/stats", weekSummaryRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/voice", voiceRouter);
 app.use("/uploads", express.static("data/uploads"));
 app.use("/exports", express.static("data/exports"));
 
