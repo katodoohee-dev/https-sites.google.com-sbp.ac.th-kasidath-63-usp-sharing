@@ -9,7 +9,7 @@ export interface VisionResult {
   raw: string;
 }
 
-const DIRECT_GEMINI_MODEL = "gemini-2.0-flash";
+const DIRECT_GEMINI_MODEL = "gemini-3.1-flash-lite";
 const DIRECT_GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${DIRECT_GEMINI_MODEL}:generateContent`;
 
 async function analyzeFoodImageViaWorker(
