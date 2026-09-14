@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { callDeepSeek } from "../services/deepseek.js";
+import { searchWeb, looksLikeItNeedsWebSearch } from "../services/geminiSearch.js";
 
 export const assistantRouter = Router();
 
@@ -61,10 +62,26 @@ assistantRouter.post("/chat", async (req, res) => {
     .map((h) => `${h.role === "user" ? "ผู้ใช้" : "เรา"}: ${h.content}`)
     .join("\n");
 
+  // FIX: เพิ่มใหม่ — ให้ Gemini ช่วยแค่ "ค้นข้อมูลอินเทอร์เน็ต" ตามที่ขอ (ทำงานร่วมกับ DeepSeek)
+  // Gemini ไม่ได้เป็นคนตอบผู้ใช้เอง แค่ไปค้นข้อเท็จจริงปัจจุบันมาให้ แล้ว DeepSeek เอาไปแต่งคำตอบ
+  // ต่อในบุคลิก/โทนเดิม ถ้าค้นไม่สำเร็จ (ไม่ได้ตั้งค่า GEMINI_API_KEY, timeout, ฯลฯ) ข้ามไปเงียบๆ
+  // ไม่ทำให้แชทพัง — ผลการค้นไม่ถูกบันทึกลง DB เลย ใช้แค่ประกอบ prompt รอบนี้รอบเดียว (กันหลุดเหมือนเคส JSON)
+  let webSearchBlock = "";
+  if (looksLikeItNeedsWebSearch(message)) {
+    try {
+      const result = await searchWeb(message);
+      const sourceLines = result.sources.map((s) => `- ${s.title}: ${s.uri}`).join("\n");
+      webSearchBlock = `\n[ผลค้นอินเทอร์เน็ตล่าสุดเกี่ยวกับคำถามนี้ (จาก Gemini) — ใช้ประกอบคำตอบให้ถูกต้องเป็นปัจจุบัน ตอบแบบธรรมชาติ ไม่ต้องพูดว่า "ค้นเจอว่า" หรืออ้างว่าใช้ Gemini]\n${result.summary}${sourceLines ? `\nแหล่งอ้างอิง:\n${sourceLines}` : ""}`;
+    } catch {
+      // ค้นไม่สำเร็จ — ปล่อยให้ DeepSeek ตอบเท่าที่รู้ตามปกติ ไม่ต้อง error ออกไปให้ผู้ใช้เห็น
+    }
+  }
+
   const prompt = [
     PERSONA,
     `\nบริบท: วันนี้ผู้ใช้กินไปแล้ว ${totals.calories} kcal`,
     context ? `\n[บริบทข้อมูลจริงของผู้ใช้จากทั้งแอป ณ ตอนนี้ — ใช้ประกอบการตอบให้แม่นยำและเป็นส่วนตัว ห้ามอ้างถึงหรือพูดถึงข้อมูล JSON นี้ตรงๆ กับผู้ใช้]\n${context}` : "",
+    webSearchBlock,
     historyText ? `\nบทสนทนาก่อนหน้า:\n${historyText}` : "",
     `\nผู้ใช้พูดว่า: ${message}`,
   ].join("\n");
