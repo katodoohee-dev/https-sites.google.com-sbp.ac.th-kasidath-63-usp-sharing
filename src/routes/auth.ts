@@ -54,12 +54,16 @@ authRouter.post("/logout", (req, res) => {
 authRouter.get("/me", requireAuth, (req, res) => {
   const user = db
     .prepare(
-      `SELECT id, email, display_name, weight_kg, height_cm, goal_kcal, goal_protein, goal_carb, goal_fat FROM users WHERE id = ?`
+      `SELECT id, email, display_name, weight_kg, height_cm, goal_kcal, goal_protein, goal_carb, goal_fat, avatar FROM users WHERE id = ?`
     )
     .get(req.userId);
   res.json({ success: true, user });
 });
 
+// FIX: บั๊กใหญ่ 🔴 — "เปลี่ยนโปรไฟล์ในแอปได้" หน้า profile.tsx ฝั่ง frontend สร้าง UI เลือก avatar
+// (emoji หรืออัปโหลดรูป) เสร็จสมบูรณ์แล้ว ส่ง field "avatar" มาด้วยทุกครั้งที่ PATCH /me แต่ schema เดิม
+// ไม่มี field นี้เลย zod เลยทิ้งไปเงียบๆ ไม่มี error ให้เห็น ผลคือรูปโปรไฟล์ไม่เคยถูกบันทึกจริงบน
+// server (frontend ต้อง fallback ไปเก็บใน localStorage เครื่องเดียวเท่านั้น เพื่อนคนอื่นเลยไม่เห็นเลย)
 const profileSchema = z.object({
   displayName: z.string().min(1).optional(),
   weightKg: z.number().positive().optional(),
@@ -68,6 +72,7 @@ const profileSchema = z.object({
   goalProtein: z.number().nonnegative().optional(),
   goalCarb: z.number().nonnegative().optional(),
   goalFat: z.number().nonnegative().optional(),
+  avatar: z.string().max(3_000_000).optional(), // emoji สั้นๆ หรือ data URL รูปที่อัปโหลด (จำกัดกันยิงใหญ่เกิน)
 });
 
 authRouter.patch("/me", requireAuth, (req, res) => {
@@ -79,7 +84,8 @@ authRouter.patch("/me", requireAuth, (req, res) => {
   const current = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.userId) as any;
   db.prepare(
     `UPDATE users SET display_name=@display_name, weight_kg=@weight_kg, height_cm=@height_cm,
-     goal_kcal=@goal_kcal, goal_protein=@goal_protein, goal_carb=@goal_carb, goal_fat=@goal_fat
+     goal_kcal=@goal_kcal, goal_protein=@goal_protein, goal_carb=@goal_carb, goal_fat=@goal_fat,
+     avatar=@avatar
      WHERE id=@id`
   ).run({
     id: req.userId,
@@ -90,6 +96,7 @@ authRouter.patch("/me", requireAuth, (req, res) => {
     goal_protein: d.goalProtein ?? current.goal_protein,
     goal_carb: d.goalCarb ?? current.goal_carb,
     goal_fat: d.goalFat ?? current.goal_fat,
+    avatar: d.avatar ?? current.avatar,
   });
   res.json({ success: true });
 });
