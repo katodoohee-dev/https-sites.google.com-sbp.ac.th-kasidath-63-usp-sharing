@@ -10,13 +10,16 @@ interface FriendListRow {
   id: string;
   name: string | null;
   streak: number;
+  avatar: string | null;
 }
 
 /** GET /api/friends — รายชื่อเพื่อนพร้อม streak ปัจจุบัน (คืนเป็น array ตรง type Friend[]) */
 friendsRouter.get("/", (req, res) => {
+  // FIX: เพิ่ม nickname (ชื่อเล่นที่ตั้งเอง ถ้ามี — ไม่มีก็ fallback กลับไปใช้ display_name เดิม)
+  // และ avatar (รูปโปรไฟล์เพื่อน) ให้ frontend เอาไปโชว์ทั้งในหน้าเพื่อนและหมุด GPS
   const rows = db
     .prepare(
-      `SELECT u.id AS id, u.display_name AS name, COALESCE(c.streak, 0) AS streak
+      `SELECT u.id AS id, COALESCE(f.nickname, u.display_name) AS name, COALESCE(c.streak, 0) AS streak, u.avatar AS avatar
        FROM friendships f
        JOIN users u ON u.id = f.friend_id
        LEFT JOIN checkins c ON c.user_id = u.id
@@ -25,7 +28,28 @@ friendsRouter.get("/", (req, res) => {
     )
     .all(req.userId) as FriendListRow[];
 
-  res.json(rows.map((r) => ({ id: r.id, name: r.name ?? "เพื่อน", streak: r.streak })));
+  res.json(rows.map((r) => ({ id: r.id, name: r.name ?? "เพื่อน", streak: r.streak, avatar: r.avatar ?? undefined })));
+});
+
+const nicknameSchema = z.object({ nickname: z.string().trim().min(1).max(40) });
+
+/** PATCH /api/friends/:id/nickname — ตั้งชื่อเล่นให้เพื่อนคนนี้ (เห็นแค่ฝั่งเราคนเดียว ไม่กระทบเพื่อน) */
+friendsRouter.patch("/:id/nickname", (req, res) => {
+  const parsed = nicknameSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "ชื่อเล่นไม่ถูกต้อง" });
+  }
+  const friendId = req.params.id;
+  const friendship = db.prepare(`SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?`).get(req.userId, friendId);
+  if (!friendship) {
+    return res.status(404).json({ success: false, error: "ไม่พบเพื่อนคนนี้ในรายชื่อของคุณ" });
+  }
+  db.prepare(`UPDATE friendships SET nickname = ? WHERE user_id = ? AND friend_id = ?`).run(
+    parsed.data.nickname,
+    req.userId,
+    friendId
+  );
+  res.json({ success: true, nickname: parsed.data.nickname });
 });
 
 /** POST /api/friends/cheer/:id — ให้กำลังใจเพื่อน (จำกัด 1 ครั้ง/คน/วัน) */
@@ -95,6 +119,53 @@ friendsRouter.post("/add", (req, res) => {
   ).run(owner.user_id, req.userId, now);
 
   res.json({ success: true });
+});
+
+// FIX: เพิ่มใหม่ — ช่องแชทคุยกับเพื่อนในแอปโดยตรง (ตามที่ขอ) เห็นเฉพาะคู่สนทนาเท่านั้น
+// ต้องเป็นเพื่อนกันแล้วเท่านั้นถึงจะแชทได้ (เช็ค friendships ทั้งสองทิศทางทุกครั้ง กัน spam จากคนแปลกหน้า)
+function assertFriendship(userId: string, friendId: string) {
+  return !!db.prepare(`SELECT 1 FROM friendships WHERE user_id = ? AND friend_id = ?`).get(userId, friendId);
+}
+
+/** GET /api/friends/:id/messages?limit=50 — ประวัติแชทกับเพื่อนคนนี้ (เรียงเก่า→ใหม่) */
+friendsRouter.get("/:id/messages", (req, res) => {
+  const friendId = req.params.id;
+  if (!assertFriendship(req.userId, friendId)) {
+    return res.status(404).json({ success: false, error: "ต้องเป็นเพื่อนกันก่อนถึงจะแชทได้" });
+  }
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const rows = db
+    .prepare(
+      `SELECT id, from_user_id AS fromUserId, to_user_id AS toUserId, content, created_at AS createdAt
+       FROM friend_messages
+       WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?)
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(req.userId, friendId, friendId, req.userId, limit) as any[];
+  res.json({ success: true, messages: rows.reverse() });
+});
+
+const friendMessageSchema = z.object({ content: z.string().trim().min(1).max(2000) });
+
+/** POST /api/friends/:id/messages — ส่งข้อความหาเพื่อนคนนี้ */
+friendsRouter.post("/:id/messages", (req, res) => {
+  const friendId = req.params.id;
+  if (!assertFriendship(req.userId, friendId)) {
+    return res.status(404).json({ success: false, error: "ต้องเป็นเพื่อนกันก่อนถึงจะแชทได้" });
+  }
+  const parsed = friendMessageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? "ข้อความไม่ถูกต้อง" });
+  }
+  const info = db
+    .prepare(`INSERT INTO friend_messages (from_user_id, to_user_id, content) VALUES (?, ?, ?)`)
+    .run(req.userId, friendId, parsed.data.content);
+  const row = db
+    .prepare(
+      `SELECT id, from_user_id AS fromUserId, to_user_id AS toUserId, content, created_at AS createdAt FROM friend_messages WHERE id = ?`
+    )
+    .get(info.lastInsertRowid);
+  res.status(201).json({ success: true, message: row });
 });
 
 /** GET /api/stats/week-summary — สรุป streak / kcal เฉลี่ย / วันตามเป้าของ 7 วันล่าสุด */
