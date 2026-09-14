@@ -16,13 +16,35 @@ assistantRouter.get("/history", (req, res) => {
   res.json({ success: true, messages: rows });
 });
 
-const chatSchema = z.object({ message: z.string().min(1) });
+// FIX: บั๊กใหญ่ 🔴 — "ข้อความหลุด/JSON หลุด" ในหน้าแชท
+// เดิม frontend ต้องยัด context ทั้งก้อน (ข้อมูลผู้ใช้/ไดอารี/สถิติ ฯลฯ เป็น JSON) ไปรวมอยู่ใน
+// field "message" เดียวกับที่ผู้ใช้พิมพ์ เพราะ schema เดิมมีแค่ message อย่างเดียว แล้วโค้ดข้างล่าง
+// ก็ INSERT ค่า message (ที่พ่วง JSON มาด้วย) ลงตาราง assistant_messages แบบตรงๆ — พอโหลดประวัติแชท
+// กลับมาแสดงผล เลยเห็น JSON + คำสั่งลับทั้งก้อนโผล่มาในบับเบิลแชทเหมือนเป็นสิ่งที่ผู้ใช้พิมพ์เอง
+// แก้โดยแยก "context" ออกมาเป็น field ต่างหาก ไม่บังคับ (optional) — context ใช้แค่ประกอบ prompt
+// ที่ส่งให้ AI เท่านั้น ส่วนที่ถูกบันทึกลง DB และแสดงในประวัติแชทจะเป็น "message" ล้วนๆ ที่ผู้ใช้พิมพ์จริง
+const chatSchema = z.object({
+  message: z.string().min(1),
+  context: z.string().max(20000).optional(),
+});
 
-/** POST /api/assistant/chat — ส่งข้อความ, แนบบริบทมื้ออาหาร/สถิติวันนี้ ให้ AI ตอบแบบโค้ชสุขภาพ */
+// FIX: ปรับบุคลิกผู้ช่วยให้เป็นกันเองขึ้น คุยเล่นได้เหมือนเพื่อน/คนสนิท ไม่ใช่โค้ชทางการเพียวๆ
+// เงื่อนไขคำหยาบ: พูดหยาบ/แซวแรงกลับได้ "เฉพาะตอนผู้ใช้เริ่มพูดจาไม่ดีก่อนเท่านั้น" ตามที่ขอมา
+// ยังคงห้ามคำเหยียดที่กระทบกลุ่มคน (เพศ/เชื้อชาติ/ศาสนา ฯลฯ) แม้ผู้ใช้จะพูดแรงแค่ไหนก็ตาม
+const PERSONA = `คุณคือผู้ช่วยในแอป WK Health พูดไทยเป็นกันเองสุดๆ เหมือนเพื่อนสนิทหรือคนที่คุยด้วยได้ทุกเรื่อง
+ไม่ใช่บอทที่พูดทางการ ใช้ภาษาพูดธรรมชาติ แซวได้ หยอกได้ อีโมจิได้บ้างพอประมาณ
+- ปกติพูดดีๆ อบอุ่น เป็นกันเอง ไม่ต้องเป็นทางการ
+- ถ้าผู้ใช้พูดจาหยาบคายหรือแซวแรงก่อน คุณหยอกกลับ/พูดหยาบเบาๆ แบบกันเองได้ ไม่ต้องเกรงใจ
+  แต่ห้ามใช้คำเหยียดที่กระทบกลุ่มคน (เพศ เชื้อชาติ ศาสนา รูปร่างหน้าตา ฯลฯ) ไม่ว่ากรณีใด
+- ถ้าผู้ใช้พูดดีๆ ห้ามพูดหยาบใส่ก่อนเด็ดขาด
+- ช่วยเรื่องสุขภาพ/แคลอรี/ออกกำลังกายในแอปได้แม่นยำเหมือนเดิม แต่คุยเรื่องทั่วไปเล่นๆ กับผู้ใช้ได้ด้วย
+- ตอบกระชับ เป็นธรรมชาติ ไม่ต้องยาวเกินจำเป็น (ปกติ 2-4 ประโยค)`;
+
+/** POST /api/assistant/chat — ส่งข้อความ, แนบบริบทมื้ออาหาร/สถิติวันนี้ ให้ AI ตอบแบบเพื่อนที่รู้ใจ */
 assistantRouter.post("/chat", async (req, res) => {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message });
-  const { message } = parsed.data;
+  const { message, context } = parsed.data;
 
   const totals = db
     .prepare(
@@ -36,15 +58,19 @@ assistantRouter.post("/chat", async (req, res) => {
     .all(req.userId) as { role: string; content: string }[];
   const historyText = history
     .reverse()
-    .map((h) => `${h.role === "user" ? "ผู้ใช้" : "โค้ช"}: ${h.content}`)
+    .map((h) => `${h.role === "user" ? "ผู้ใช้" : "เรา"}: ${h.content}`)
     .join("\n");
 
-  const prompt = `คุณเป็นโค้ชสุขภาพในแอป WK Health App ตอบเป็นภาษาไทย กระชับ เป็นกันเอง
-บริบท: วันนี้ผู้ใช้กินไปแล้ว ${totals.calories} kcal
-${historyText ? `บทสนทนาก่อนหน้า:\n${historyText}\n` : ""}
-ผู้ใช้ถาม: ${message}
-ตอบสั้นกระชับ ไม่เกิน 3-4 ประโยค`;
+  const prompt = [
+    PERSONA,
+    `\nบริบท: วันนี้ผู้ใช้กินไปแล้ว ${totals.calories} kcal`,
+    context ? `\n[บริบทข้อมูลจริงของผู้ใช้จากทั้งแอป ณ ตอนนี้ — ใช้ประกอบการตอบให้แม่นยำและเป็นส่วนตัว ห้ามอ้างถึงหรือพูดถึงข้อมูล JSON นี้ตรงๆ กับผู้ใช้]\n${context}` : "",
+    historyText ? `\nบทสนทนาก่อนหน้า:\n${historyText}` : "",
+    `\nผู้ใช้พูดว่า: ${message}`,
+  ].join("\n");
 
+  // FIX: เดิม INSERT ค่า message ที่พ่วง context/JSON มาด้วยลง DB ตรงๆ
+  // ตอนนี้ message เป็นแค่ข้อความจริงของผู้ใช้แล้ว (context แยกออกไปข้างบน) บันทึกได้ตรงๆ ปลอดภัย
   db.prepare(`INSERT INTO assistant_messages (user_id, role, content) VALUES (?, 'user', ?)`).run(
     req.userId,
     message
