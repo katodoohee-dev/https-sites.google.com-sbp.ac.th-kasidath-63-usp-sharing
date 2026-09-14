@@ -172,6 +172,17 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- กลุ่ม Friend Chat: ทักแชทคุยกับเพื่อนในแอปได้โดยตรง (เห็นเฉพาะคู่สนทนา)
+CREATE TABLE IF NOT EXISTS friend_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_friend_messages_from ON friend_messages(from_user_id, to_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_friend_messages_to ON friend_messages(to_user_id, from_user_id, created_at);
+
 -- กลุ่ม Notification Settings
 CREATE TABLE IF NOT EXISTS notification_settings (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
