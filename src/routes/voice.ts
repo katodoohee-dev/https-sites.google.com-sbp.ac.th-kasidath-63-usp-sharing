@@ -14,11 +14,16 @@ const SYSTEM_PROMPT = `คุณคือผู้เชี่ยวชาญภ
 - ใช้เฉพาะ action ที่อยู่ในรายการ Allowed actions
 - ถ้าไม่เกี่ยวกับการควบคุมแอป ให้คืน NONE
 - ถ้าเป็นกิจกรรมออกกำลังกาย ให้คืน EXERCISE พร้อม activity, duration_min และ mets ที่สมเหตุสมผล
+- ถ้าผู้ใช้ต้องการส่งข้อความ/ทัก/บอกอะไรกับเพื่อนคนใดคนหนึ่งในแอป ให้คืน SEND_FRIEND_MESSAGE พร้อม
+  friend_name (ชื่อเพื่อนที่พูดถึง) และ message (ข้อความที่จะส่ง) เช่น "ส่งข้อความหาก้องว่าไปกินข้าวกันไหม"
+  -> {"action":"SEND_FRIEND_MESSAGE","friend_name":"ก้อง","message":"ไปกินข้าวกันไหม"}
+- "เปิดหน้าเพื่อน"/"ดูรายชื่อเพื่อน" -> OPEN_FRIENDS ส่วน "เปิดแชท"/"คุยกับผู้ช่วย" เฉยๆ ไม่ระบุชื่อคน -> OPEN_ASSISTANT
 
 Allowed actions:
 START_WALK,START_RUN,START_CYCLE,START_GPS,STOP_WALK,STOP_RUN,STOP_CYCLE,STOP_GPS,
 PLAY_MUSIC,PAUSE_MUSIC,STOP_MUSIC,NEXT_MUSIC,PREVIOUS_MUSIC,
-OPEN_MUSIC,OPEN_DIARY,OPEN_STATS,OPEN_SCAN,OPEN_BARCODE,OPEN_PEDOMETER,OPEN_ASSISTANT,OPEN_PROFILE,
+OPEN_MUSIC,OPEN_DIARY,OPEN_STATS,OPEN_SCAN,OPEN_BARCODE,OPEN_PEDOMETER,OPEN_ASSISTANT,OPEN_PROFILE,OPEN_FRIENDS,
+SEND_FRIEND_MESSAGE,
 EXERCISE,SHOW_CALORIES,SHOW_STEPS,SAVE_MEAL,NONE.`;
 
 const VoiceActionSchema = z.object({ action: z.string() }).passthrough();
