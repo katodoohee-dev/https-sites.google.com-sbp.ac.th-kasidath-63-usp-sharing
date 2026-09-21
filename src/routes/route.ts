@@ -57,3 +57,34 @@ routeRouter.get("/history", (req, res) => {
     .all(req.userId, limit);
   res.json({ success: true, routes: rows });
 });
+
+// FIX: เพิ่มใหม่ — ตามที่ขอ "แชร์สถิติการวิ่งพร้อมเส้นทางจริง" ต้องมีพิกัด GPS ทั้งเส้นทาง แต่
+// GET /history เดิมไม่ได้ select path_json ออกมาด้วย (กันก้อน response หน้ารายการใหญ่เกินจำเป็น)
+// เลยเพิ่ม endpoint แยกไว้ ให้ frontend เรียกทีเดียวตอนจะแชร์เส้นทางไหนโดยเฉพาะเท่านั้น
+routeRouter.get("/:id", (req, res) => {
+  const row = db
+    .prepare(
+      `SELECT id, distance_km, duration_seconds, kcal_burned, started_at, ended_at, path_json
+       FROM gps_routes WHERE id = ? AND user_id = ? AND ended_at IS NOT NULL`
+    )
+    .get(req.params.id, req.userId) as any;
+  if (!row) return res.status(404).json({ success: false, error: "ไม่พบเส้นทางนี้ หรือไม่ใช่ของคุณ" });
+  let path: { lat: number; lng: number; t?: number }[] = [];
+  try {
+    path = row.path_json ? JSON.parse(row.path_json) : [];
+  } catch {
+    path = [];
+  }
+  res.json({
+    success: true,
+    route: {
+      id: row.id,
+      distance_km: row.distance_km,
+      duration_seconds: row.duration_seconds,
+      kcal_burned: row.kcal_burned,
+      started_at: row.started_at,
+      ended_at: row.ended_at,
+      path,
+    },
+  });
+});
